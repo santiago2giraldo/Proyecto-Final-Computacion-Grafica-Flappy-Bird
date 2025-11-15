@@ -1,1 +1,1 @@
-# Proyecto-Final-Computaci-n-Gr-fica---Flappy-Hand
+# Proyecto-Final-Computacion-Grafica- Flappy-Hand
