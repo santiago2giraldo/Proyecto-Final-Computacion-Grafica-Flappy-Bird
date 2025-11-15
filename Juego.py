@@ -70,19 +70,14 @@ def menu_principal():
 
     # Zonas invisibles donde se puede hacer clic
     # (x, y, width, height)
-    boton_jugar = pygame.Rect(W//2 - 150, 240, 300, 70)
-    boton_instrucciones = pygame.Rect(W//2 - 150, 320, 300, 70)
-    boton_salir = pygame.Rect(W//2 - 150, 400, 300, 70)
-
+    boton_jugar = pygame.Rect(W//2 - 100, 210, 400, 70)
+    boton_instrucciones = pygame.Rect(W//2 - 100, 300, 400, 70)
+    boton_salir = pygame.Rect(W//2 - 100, 380, 400, 70)
+    
     while True:
         screen.blit(fondo, (0, 0))
         mx, my = pygame.mouse.get_pos()
-
-        # --- DEBUG opcional: mostrar contornos ---
-        # pygame.draw.rect(screen, (255,0,0), boton_jugar, 2)
-        # pygame.draw.rect(screen, (0,255,0), boton_instrucciones, 2)
-        # pygame.draw.rect(screen, (0,0,255), boton_salir, 2)
-
+        
         for e in pygame.event.get():
             if e.type == pygame.QUIT:
                 pygame.quit()
@@ -144,3 +139,4 @@ def jugar():
 # EJECUCIÓN
 # ---------------------------------------
 menu_principal()
+
