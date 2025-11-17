@@ -216,7 +216,7 @@ def jugar():
         jugador_img = pygame.image.load("Jugador.png")
         jugador_img = pygame.transform.scale(jugador_img, (98, 98))
         screen.blit(jugador_img, (int(jugador["x"])-46, int(jugador["y"])-53))
-        pygame.display.flip()
+        
          
         # DIBUJAR OBSTÁCULOS
         
