@@ -1,6 +1,9 @@
 import pygame
 import random
 import sys
+import cv2
+import mediapipe as mp
+import numpy as np  
 
 # ---------------------------------------
 # CONFIGURACIÓN INICIAL
@@ -58,28 +61,20 @@ def aplicar_gravedad_y_rozamiento(jugador, dt):
     jugador["vy"] *= drag
 
 # ---------------------------------------
+# USO DE LA CÁMARA
+# ---------------------------------------
+mp_hands = mp.solutions.hands
+hands = mp_hands.Hands(max_num_hands=1, min_detection_confidence=0.7)
+mp_draw = mp.solutions.drawing_utils
+cap = cv2.VideoCapture(0)
+# ---------------------------------------
 # INSTRUCCIONES
 # ---------------------------------------
 def instrucciones():
     while True:
-        screen.fill((0, 150, 255))
-
-        titulo = font.render("INSTRUCCIONES", True, (255, 255, 255))
-        screen.blit(titulo, titulo.get_rect(center=(W//2, 80)))
-
-        texto = [
-            "Este es el Flappy Bird experimental.",
-            "Presiona ESPACIO para impulsarte.",
-            "Evita las tuberías.",
-            "",
-            "Presiona ESC para volver al menú."
-        ]
-
-        y = 160
-        for linea in texto:
-            r = font_small.render(linea, True, (255,255,255))
-            screen.blit(r, (80, y))
-            y += 40
+        instrucciones_img = pygame.image.load("instrucciones.png")
+        instrucciones_img = pygame.transform.scale(instrucciones_img, (W, H))
+        screen.blit(instrucciones_img, (0, 0))
 
         for e in pygame.event.get():
             if e.type == pygame.QUIT: sys.exit()
@@ -164,9 +159,37 @@ def jugar():
     fondo = pygame.transform.scale(fondo, (W, H))
 
     running = True
-    
+
     while running:
         dt = clock.tick(120) / 1000.0
+# ---------------------------------------
+# Uso de la cámara
+# ---------------------------------------
+        ret, frame = cap.read()
+        if not ret:
+            continue
+
+        # Voltear el frame horizontalmente para una vista tipo espejo
+        frame = cv2.flip(frame, 1)
+    
+        # Convertir la imagen a RGB (MediaPipe requiere RGB)
+        rgb_frame = cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)
+    
+        # Procesar el frame para detectar manos
+        results = hands.process(rgb_frame)
+        # Si se detectan manos
+        if results.multi_hand_landmarks:
+            
+            for hand_landmarks in results.multi_hand_landmarks:
+                # Obtener las coordenadas de los dedos pulgar e índice
+                thumb_tip = hand_landmarks.landmark[4]
+                index_tip = hand_landmarks.landmark[8]
+
+            # Calcular la distancia entre los dedos
+            distance = np.sqrt(
+                (thumb_tip.x - index_tip.x)**2 + 
+                (thumb_tip.y - index_tip.y)**2
+            )
 
         # EVENTOS
         for e in pygame.event.get():
