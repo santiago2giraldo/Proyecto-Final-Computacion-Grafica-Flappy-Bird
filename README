@@ -1,0 +1,24 @@
+README FLAPPY BIRD [JUAN DAVID LLANO, SANTIAGO GIRALDO  Y MIGUEL GALLEGO]
+
+Descripción general:
+
+Videojuego Flappy Bird con mecánicas de detección de movimiento mediante cámara del dispositivo.
+
+Archivos:
+
+README -> Guía de instalación y ejecución.
+Game Design Document.md -> Documento de información detallada del juego.
+Juego.py -> Código del juego.
+pantalla_inicio.jpg -> Imagen de bienvenida al juego.
+Menu.jpg -> Imagen de menú del juego.
+instrucciones.png -> Imagen de instrucciones al jugador.
+Fondo.png -> Imagen del fondo del juego.
+Jugador.png -> Elemento de pájaro usado como jugador.
+Tuberias.png -> Elemento de tubería usado como obstáculo.
+sonido_pasar_obstaculo.mp3 -> Efecto de sonido al puntuar.
+sonido_colision.mp3 -> Efecto de sonido al chocar con un obstáculo.
+
+Cómo ejecutar:
+
+Abrir terminal en la carpeta FlappyBird.
+Ejecutar: Juego.py.
