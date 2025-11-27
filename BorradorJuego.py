@@ -271,27 +271,31 @@ def jugar():
             except:
                 cam_preview = None
 
-            # --- CONTROL DEL JUGADOR CON EL DEDO ÍNDICE ---
+           # --- CONTROL DEL JUGADOR CON EL DEDO ÍNDICE ---
+            control_por_dedo = False
+
             if results and results.multi_hand_landmarks:
-                hand = results.multi_hand_landmarks[0]
+               hand = results.multi_hand_landmarks[0]
+               index_tip = hand.landmark[8]
 
-                # landmark 8 = punta del dedo índice
-                index_tip = hand.landmark[8]
+                   # Mapeo completo cámara → pantalla
+               y_pantalla = np.interp(index_tip.y, [0.15, 0.85], [0, H])
 
-                # convertir coordenada normalizada (0-1) a píxeles
-                y_normalized = index_tip.y
-                y_pantalla = y_normalized * H
+                # Suavizado fluido
+            suavizado = 0.55
+            jugador["y"] = jugador["y"] * (1 - suavizado) + y_pantalla * suavizado
 
-                # suavizado para que el pájaro no tiemble
-                suavizado = 0.25
-                jugador["y"] = jugador["y"] * (1 - suavizado) + y_pantalla * suavizado
+                # Límites
+            jugador["y"] = max(0, min(H - 40, jugador["y"]))
 
-                # límite en pantalla
-                jugador["y"] = max(0, min(H - 40, jugador["y"]))
+                # DESACTIVAR gravedad cuando controlas con el dedo
+            jugador["vy"] = 0
+            control_por_dedo = True
 
 
         # FÍSICA
-        aplicar_gravedad_y_rozamiento(jugador, dt)
+        if not control_por_dedo:
+            aplicar_gravedad_y_rozamiento(jugador, dt)
         jugador["y"] += jugador["vy"] * dt
 
         # --- COLISIÓN ARRIBA/ABAJO ---
