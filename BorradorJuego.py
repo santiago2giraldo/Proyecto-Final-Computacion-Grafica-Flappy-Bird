@@ -217,47 +217,8 @@ def jugar():
 
     while running:
         dt = clock.tick(120) / 1000.0
-# ---------------------------------------
-# Uso de la cámara
-# ---------------------------------------
-        ret, frame = cap.read()
-        if not ret:
-            continue
 
-        # Voltear el frame horizontalmente para una vista tipo espejo
-        frame = cv2.flip(frame, 1)
-    
-        # Convertir la imagen a RGB (MediaPipe requiere RGB)
-        rgb_frame = cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)
-    
-        # Procesar el frame para detectar manos
         
-        if hands is not None:
-            results = hands.process(rgb_frame)
-        else:
-            results = None
-
-        try:
-            # Crear surface desde buffer RGB (frame.shape = (alto, ancho, 3))
-            cam_surf = pygame.image.frombuffer(rgb_frame.tobytes(), (frame.shape[1], frame.shape[0]), 'RGB')
-            # Escalar preview a un tamaño más pequeño
-            cam_preview = pygame.transform.scale(cam_surf, (320, 240))
-        except Exception:
-            cam_preview = None
-        
-        # Si se detectan manos
-        if results.multi_hand_landmarks:
-            
-            for hand_landmarks in results.multi_hand_landmarks:
-                # Obtener las coordenadas de los dedos pulgar e índice
-                thumb_tip = hand_landmarks.landmark[4]
-                index_tip = hand_landmarks.landmark[8]
-
-            # Calcular la distancia entre los dedos
-            distance = np.sqrt(
-                (thumb_tip.x - index_tip.x)**2 + 
-                (thumb_tip.y - index_tip.y)**2
-            )
 
         # EVENTOS
         for e in pygame.event.get():
@@ -286,6 +247,48 @@ def jugar():
             if obs["x"] + ANCHO_OBSTACULO > 0:
                 obstaculos_nuevos.append(obs)
         obstaculos = obstaculos_nuevos
+
+                # --- USO DE LA CÁMARA: LECTURA Y CONTROL CON DEDO ÍNDICE ---
+        ret, frame = cap.read()
+        cam_preview = None
+        if ret:
+            frame = cv2.flip(frame, 1)
+            rgb_frame = cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)
+
+            if hands is not None:
+                results = hands.process(rgb_frame)
+            else:
+                results = None
+
+            # convertir a surface para preview
+            try:
+                cam_surf = pygame.image.frombuffer(
+                    rgb_frame.tobytes(),
+                    (frame.shape[1], frame.shape[0]),
+                    'RGB'
+                )
+                cam_preview = pygame.transform.scale(cam_surf, (320, 240))
+            except:
+                cam_preview = None
+
+            # --- CONTROL DEL JUGADOR CON EL DEDO ÍNDICE ---
+            if results and results.multi_hand_landmarks:
+                hand = results.multi_hand_landmarks[0]
+
+                # landmark 8 = punta del dedo índice
+                index_tip = hand.landmark[8]
+
+                # convertir coordenada normalizada (0-1) a píxeles
+                y_normalized = index_tip.y
+                y_pantalla = y_normalized * H
+
+                # suavizado para que el pájaro no tiemble
+                suavizado = 0.25
+                jugador["y"] = jugador["y"] * (1 - suavizado) + y_pantalla * suavizado
+
+                # límite en pantalla
+                jugador["y"] = max(0, min(H - 40, jugador["y"]))
+
 
         # FÍSICA
         aplicar_gravedad_y_rozamiento(jugador, dt)
