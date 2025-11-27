@@ -63,10 +63,18 @@ def aplicar_gravedad_y_rozamiento(jugador, dt):
 # ---------------------------------------
 # USO DE LA CÁMARA
 # ---------------------------------------
-mp_hands = mp.solutions.hands
-hands = mp_hands.Hands(max_num_hands=1, min_detection_confidence=0.7)
-mp_draw = mp.solutions.drawing_utils
+try:
+    mp_hands = mp.solutions.hands
+    hands = mp_hands.Hands(max_num_hands=1, min_detection_confidence=0.7)
+    mp_draw = mp.solutions.drawing_utils
+except Exception as e:
+    print("Warning: MediaPipe no pudo inicializarse:", e)
+    hands = None
+    mp_draw = None
+
 cap = cv2.VideoCapture(0)
+if not cap.isOpened():
+    print("Warning: no se pudo abrir la cámara (cap).")
 # ---------------------------------------
 # INSTRUCCIONES
 # ---------------------------------------
@@ -157,39 +165,60 @@ def jugar():
         fondo = pygame.Surface((W, H))
         fondo.fill((0, 180, 255))
     fondo = pygame.transform.scale(fondo, (W, H))
+    # ...existing code...
+    # Obstáculos
+    obstaculos = []
+    tiempo_para_prox_obstaculo = INTERVALO_OBSTACULO
+# ...existing code...
+    # --- Esperar a que el jugador esté listo antes de empezar ---
+    started = False
+    PINCH_THRESHOLD = 0.04
 
+    while not started:
+        dt = clock.tick(30) / 1000.0
+
+        # leer cámara y crear preview (igual que en el bucle principal)
+        ret, frame = cap.read()
+        cam_preview = None
+        if ret:
+            frame = cv2.flip(frame, 1)
+            rgb_frame = cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)
+            if hands is not None:
+                results = hands.process(rgb_frame)
+            else:
+                results = None
+            try:
+                cam_surf = pygame.image.frombuffer(rgb_frame.tobytes(), (frame.shape[1], frame.shape[0]), 'RGB')
+                cam_preview = pygame.transform.scale(cam_surf, (320, 240))
+            except:
+                cam_preview = None
+
+        # eventos para iniciar
+        for e in pygame.event.get():
+            if e.type == pygame.QUIT: sys.exit()
+            if e.type == pygame.KEYDOWN and e.key in (pygame.K_SPACE, pygame.K_RETURN):
+                started = True
+            if e.type == pygame.MOUSEBUTTONDOWN:
+                started = True
+
+        # dibujar pantalla LISTO
+        screen.blit(fondo, (0, 0))
+        screen.blit(jugador_img, (int(jugador["x"]) - 46, int(jugador["y"]) - 53))
+        if cam_preview is not None:
+            screen.blit(cam_preview, (W - 320 - 10, 10))
+        texto = font.render("Presiona SPACE / clic para empezar", True, (255,255,255))
+        screen.blit(texto, texto.get_rect(center=(W//2, H - 50)))
+        pygame.display.flip()
+
+    # reiniciar estado y empezar bucle principal
+    obstaculos = []
+    tiempo_para_prox_obstaculo = INTERVALO_OBSTACULO
     running = True
 
     while running:
         dt = clock.tick(120) / 1000.0
-# ---------------------------------------
-# Uso de la cámara
-# ---------------------------------------
-        ret, frame = cap.read()
-        if not ret:
-            continue
 
-        # Voltear el frame horizontalmente para una vista tipo espejo
-        frame = cv2.flip(frame, 1)
-    
-        # Convertir la imagen a RGB (MediaPipe requiere RGB)
-        rgb_frame = cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)
-    
-        # Procesar el frame para detectar manos
-        results = hands.process(rgb_frame)
-        # Si se detectan manos
-        if results.multi_hand_landmarks:
-            
-            for hand_landmarks in results.multi_hand_landmarks:
-                # Obtener las coordenadas de los dedos pulgar e índice
-                thumb_tip = hand_landmarks.landmark[4]
-                index_tip = hand_landmarks.landmark[8]
-
-            # Calcular la distancia entre los dedos
-            distance = np.sqrt(
-                (thumb_tip.x - index_tip.x)**2 + 
-                (thumb_tip.y - index_tip.y)**2
-            )
+        
 
         # EVENTOS
         for e in pygame.event.get():
@@ -219,8 +248,57 @@ def jugar():
                 obstaculos_nuevos.append(obs)
         obstaculos = obstaculos_nuevos
 
+        # --- USO DE LA CÁMARA: LECTURA Y CONTROL CON DEDO ÍNDICE ---
+        ret, frame = cap.read()
+        cam_preview = None
+        control_por_dedo = False
+        results = None
+        if ret:
+            frame = cv2.flip(frame, 1)
+            rgb_frame = cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)
+
+            if hands is not None:
+                try:
+                    results = hands.process(rgb_frame)
+                except Exception:
+                    results = None
+            else:
+                results = None
+
+            # convertir a surface para preview
+            try:
+                cam_surf = pygame.image.frombuffer(
+                    rgb_frame.tobytes(),
+                    (frame.shape[1], frame.shape[0]),
+                    'RGB'
+                )
+                cam_preview = pygame.transform.scale(cam_surf, (320, 240))
+            except:
+                cam_preview = None
+
+            # --- CONTROL DEL JUGADOR CON EL DEDO ÍNDICE ---
+            if results and results.multi_hand_landmarks:
+                hand = results.multi_hand_landmarks[0]
+                index_tip = hand.landmark[8]
+
+                # Mapeo completo cámara → pantalla (ajustar rango si es necesario)
+                y_pantalla = np.interp(index_tip.y, [0.15, 0.85], [0, H])
+
+                # Suavizado fluido
+                suavizado = 0.55
+                jugador["y"] = jugador["y"] * (1 - suavizado) + y_pantalla * suavizado
+
+                # Límites
+                jugador["y"] = max(0, min(H - 40, jugador["y"]))
+
+                # DESACTIVAR gravedad cuando controlas con el dedo
+                jugador["vy"] = 0
+                control_por_dedo = True
+
+
         # FÍSICA
-        aplicar_gravedad_y_rozamiento(jugador, dt)
+        if not control_por_dedo:
+            aplicar_gravedad_y_rozamiento(jugador, dt)
         jugador["y"] += jugador["vy"] * dt
 
         # --- COLISIÓN ARRIBA/ABAJO ---
@@ -253,6 +331,9 @@ def jugar():
         screen.blit(fondo, (0, 0))
         screen.blit(jugador_img, (int(jugador["x"])-46, int(jugador["y"])-53))
 
+        # Dibujar preview de la cámara
+        if cam_preview is not None:
+            screen.blit(cam_preview, (W - 320 - 10, 10))
         # Dibujar tubos
         for obs in obstaculos:
             x = int(obs["x"])
@@ -286,7 +367,7 @@ def jugar():
         presiona = font_small.render("Presiona cualquier tecla...", True, (0,0,0))
         screen.blit(presiona, presiona.get_rect(center=(W//2, H//2 + 60)))
 
-        pygame.display.flip()
+        pygame.display.flip()    
 
         for e in pygame.event.get():
             if e.type == pygame.QUIT: sys.exit()
@@ -298,3 +379,8 @@ def jugar():
 # ---------------------------------------
 pantalla_inicio()
 menu_principal()
+try:
+    cap.release()
+    cv2.destroyAllWindows()
+except:
+    pass
