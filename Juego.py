@@ -3,7 +3,6 @@ import random
 import sys
 import cv2
 import mediapipe as mp
-import numpy as np  
 
 # ---------------------------------------
 # CONFIGURACIÓN INICIAL
@@ -281,8 +280,15 @@ def jugar():
                 hand = results.multi_hand_landmarks[0]
                 index_tip = hand.landmark[8]
 
-                # Mapeo completo cámara → pantalla (ajustar rango si es necesario)
-                y_pantalla = np.interp(index_tip.y, [0.15, 0.85], [0, H])
+                a = index_tip.y
+                x1, x2 = 0.15, 0.85
+                y1, y2 = 0, H
+
+                # Evitar división por cero
+                if x2 != x1:
+                  y_pantalla = y1 + (a - x1) * (y2 - y1) / (x2 - x1)
+                else:
+                    y_pantalla = y1
 
                 # Suavizado fluido
                 suavizado = 0.55
@@ -384,3 +390,4 @@ try:
     cv2.destroyAllWindows()
 except:
     pass
+
