@@ -3,6 +3,7 @@ import random
 import sys
 import cv2
 import mediapipe as mp
+import numpy as np  
 
 # ---------------------------------------
 # CONFIGURACIÓN INICIAL
@@ -147,7 +148,13 @@ def menu_principal():
 # JUEGO PRINCIPAL
 # ---------------------------------------
 def jugar():
-
+    # Función principal de la partida.
+    # - Inicializa el estado del jugador, los obstáculos y el puntaje.
+    # - Muestra una pantalla de "LISTO" hasta que el jugador empiece.
+    # - Ejecuta el bucle principal: eventos, generación/movimiento de obstáculos,
+    #   lectura de cámara (opcional), física, colisiones y render.
+    # - Al terminar muestra la pantalla de GAME OVER.
+    
     jugador = {"x": 100, "y": 300, "vx": 0, "vy": 0}
 
     # Obstáculos
@@ -164,18 +171,24 @@ def jugar():
         fondo = pygame.Surface((W, H))
         fondo.fill((0, 180, 255))
     fondo = pygame.transform.scale(fondo, (W, H))
-    # ...existing code...
+  
     # Obstáculos
     obstaculos = []
     tiempo_para_prox_obstaculo = INTERVALO_OBSTACULO
-# ...existing code...
-    # --- Esperar a que el jugador esté listo antes de empezar ---
+
+    # Pantalla de espera "LISTO": el juego no avanza ni genera obstáculos
+    # hasta que el usuario pulse SPACE / ENTER / haga click. Esto evita que
+    # el jugador pierda inmediatamente al empezar y le da tiempo a prepararse.
     started = False
     PINCH_THRESHOLD = 0.04
 
     while not started:
         dt = clock.tick(30) / 1000.0
 
+        # Leer la cámara para mostrar un preview en la pantalla de LISTO.
+        # Nota: aquí solo mostramos la imagen/preview; no se aplica física.
+        # Si MediaPipe está configurado, también se puede usar para detectar
+        # gestos incluso antes de empezar (ej. pinch para comenzar).
         # leer cámara y crear preview (igual que en el bucle principal)
         ret, frame = cap.read()
         cam_preview = None
@@ -214,11 +227,16 @@ def jugar():
     tiempo_para_prox_obstaculo = INTERVALO_OBSTACULO
     running = True
 
+    # Bucle principal de la partida
+    # `dt` es el tiempo en segundos desde el último frame (usado para física estable)
     while running:
         dt = clock.tick(120) / 1000.0
 
         
 
+        # --- Eventos ---
+        # Procesa entrada de usuario: cerrar ventana, pausa/escape y salto con SPACE.
+        # Mantener este bloque simple evita que los eventos se acumulen.
         # EVENTOS
         for e in pygame.event.get():
             if e.type == pygame.QUIT: sys.exit()
@@ -229,6 +247,9 @@ def jugar():
                 if e.key == pygame.K_SPACE:
                     jugador["vy"] = -700
 
+        # --- Generar obstáculos ---
+        # Se usa `tiempo_para_prox_obstaculo` para espaciar la aparición de tubos.
+        # Cuando alcanza 0 se crea un nuevo obstáculo con una separación vertical aleatoria.
         # GENERAR OBSTÁCULOS
         tiempo_para_prox_obstaculo -= dt
         if tiempo_para_prox_obstaculo <= 0:
@@ -238,6 +259,9 @@ def jugar():
                                       H - margen - ESPACIO_OBSTACULO // 2)
             obstaculos.append({"x": W, "centro_y": centro_y, "contado": False})
 
+        # --- Mover obstáculos ---
+        # Actualiza la posición X de los obstáculos y descarta los que
+        # han salido completamente de la pantalla (para liberar memoria).
         # MOVER OBSTÁCULOS
         obstaculos_nuevos = []
         mov_x = VELOCIDAD_OBSTACULO * dt
@@ -247,6 +271,11 @@ def jugar():
                 obstaculos_nuevos.append(obs)
         obstaculos = obstaculos_nuevos
 
+        # --- Uso de la cámara: lectura y control con dedo índice ---
+        # Aquí se captura un frame y (si MediaPipe está disponible) se procesan
+        # landmarks de la mano para controlar el jugador. El control por dedo
+        # detiene la física vertical y mueve al jugador suavemente.
+        # Si no hay detección, la física normal continúa.
         # --- USO DE LA CÁMARA: LECTURA Y CONTROL CON DEDO ÍNDICE ---
         ret, frame = cap.read()
         cam_preview = None
@@ -275,20 +304,13 @@ def jugar():
             except:
                 cam_preview = None
 
-            # --- CONTROL DEL JUGADOR CON EL DEDO ÍNDICE ---
+            # CONTROL DEL JUGADOR CON EL DEDO ÍNDICE
             if results and results.multi_hand_landmarks:
                 hand = results.multi_hand_landmarks[0]
                 index_tip = hand.landmark[8]
 
-                a = index_tip.y
-                x1, x2 = 0.15, 0.85
-                y1, y2 = 0, H
-
-                # Evitar división por cero
-                if x2 != x1:
-                  y_pantalla = y1 + (a - x1) * (y2 - y1) / (x2 - x1)
-                else:
-                    y_pantalla = y1
+                # Mapeo completo cámara → pantalla (ajustar rango si es necesario)
+                y_pantalla = np.interp(index_tip.y, [0.15, 0.85], [0, H])
 
                 # Suavizado fluido
                 suavizado = 0.55
@@ -302,12 +324,16 @@ def jugar():
                 control_por_dedo = True
 
 
+        # --- Física ---
+        # Aplicar gravedad y rozamiento únicamente si NO estamos controlando
+        # al jugador con la mano (control_por_dedo). Después actualizamos
+        # la posición vertical en base a la velocidad `vy`.
         # FÍSICA
         if not control_por_dedo:
             aplicar_gravedad_y_rozamiento(jugador, dt)
         jugador["y"] += jugador["vy"] * dt
 
-        # --- COLISIÓN ARRIBA/ABAJO ---
+        # COLISIÓN ARRIBA/ABAJO
         if jugador["y"] < 0:
             jugador["y"] = 0
             running = False
@@ -316,6 +342,11 @@ def jugar():
             jugador["y"] = H - 40
             running = False
 
+        # --- Colisión con tuberías ---
+        # Para cada obstáculo calculamos las zonas superior e inferior y:
+        # - aumentamos el puntaje cuando el jugador pasa por el hueco (una vez por obstáculo)
+        # - comprobamos si hay solapamiento vertical/horizontal que produzca colisión
+        # Si detectamos colisión, `running` se pone a False para terminar la partida.
         # --- COLISIÓN CON TUBERÍAS ---
         for obs in obstaculos:
             x = int(obs["x"])
@@ -333,11 +364,14 @@ def jugar():
                 if jugador["y"] < alto_sup or jugador["y"] > y_inf:
                     running = False
 
-        # DIBUJAR
+        # --- Dibujar ---
+        # Renderiza la escena: fondo, jugador, preview de cámara (si existe)
+        # y los tubos. Mantén la orden de dibujado para que los objetos se vean
+        # correctamente (fondo primero, luego sprites encima).
         screen.blit(fondo, (0, 0))
         screen.blit(jugador_img, (int(jugador["x"])-46, int(jugador["y"])-53))
 
-        # Dibujar preview de la cámara
+        # Dibujar preview de la cámara (esquina superior derecha)
         if cam_preview is not None:
             screen.blit(cam_preview, (W - 320 - 10, 10))
         # Dibujar tubos
@@ -359,9 +393,18 @@ def jugar():
     # ---------------------------------------------------
     # GAME OVER
     # ---------------------------------------------------
+    # ---------------------------------------------------
+    # GAME OVER
+    # ---------------------------------------------------
+    # Reproducir sonido de colisión (si está disponible) y mostrar pantalla
+    # de GAME OVER con el puntaje final. El código que sigue devuelve al menú
+    # cuando el usuario pulsa una tecla o automáticamente después de 4 segundos.
     if sonido_colision: sonido_colision.play()
+    
+    start_time = pygame.time.get_ticks()
 
     while True:
+        # Mostrar overlay de game over
         screen.blit(fondo, (0,0))
 
         game_over = font.render("GAME OVER", True, (255,0,0))
@@ -373,12 +416,17 @@ def jugar():
         presiona = font_small.render("Presiona cualquier tecla...", True, (0,0,0))
         screen.blit(presiona, presiona.get_rect(center=(W//2, H//2 + 60)))
 
-        pygame.display.flip()    
+        pygame.display.flip()
 
+        # Manejar eventos: cerrar o volver inmediatamente al menú si el usuario pulsa una tecla
         for e in pygame.event.get():
             if e.type == pygame.QUIT: sys.exit()
             if e.type == pygame.KEYDOWN:
                 return
+
+        # Volver automáticamente al menú tras 4000 ms (4 segundos)
+        if pygame.time.get_ticks() - start_time >= 4000:
+            return
 
 # ---------------------------------------
 # EJECUCIÓN
@@ -390,4 +438,3 @@ try:
     cv2.destroyAllWindows()
 except:
     pass
-
