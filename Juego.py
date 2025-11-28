@@ -49,19 +49,7 @@ try:
 except:
     sonido_salto = None
     sonido_colision = None
-
-# ---------------------------------------
-# FÍSICA
-# ---------------------------------------
-def aplicar_gravedad_y_rozamiento(jugador, dt):
-    drag = ROZAMIENTO_AIRE ** dt
-    jugador["vy"] += GRAVEDAD * dt
-    jugador["vx"] *= drag
-    jugador["vy"] *= drag
-
-# ---------------------------------------
-# USO DE LA CÁMARA
-# ---------------------------------------
+# ----- Cámara -----
 try:
     mp_hands = mp.solutions.hands
     hands = mp_hands.Hands(max_num_hands=1, min_detection_confidence=0.7)
@@ -74,6 +62,15 @@ except Exception as e:
 cap = cv2.VideoCapture(0)
 if not cap.isOpened():
     print("Warning: no se pudo abrir la cámara (cap).")
+# ---------------------------------------
+# FÍSICA - Gravedad
+# ---------------------------------------
+def aplicar_gravedad_y_rozamiento(jugador, dt):
+    drag = ROZAMIENTO_AIRE ** dt
+    jugador["vy"] += GRAVEDAD * dt
+    jugador["vx"] *= drag
+    jugador["vy"] *= drag
+
 # ---------------------------------------
 # INSTRUCCIONES
 # ---------------------------------------
@@ -445,4 +442,5 @@ try:
     cv2.destroyAllWindows()
 except:
     pass
+
 
