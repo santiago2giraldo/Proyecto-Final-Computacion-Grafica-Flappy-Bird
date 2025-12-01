@@ -145,12 +145,10 @@ def menu_principal():
 # ---------------------------------------
 def jugar():
     # Función principal de la partida.
-    # - Inicializa el estado del jugador, los obstáculos y el puntaje.
-    # - Muestra una pantalla de "LISTO" hasta que el jugador empiece.
     # - Ejecuta el bucle principal: eventos, generación/movimiento de obstáculos,
     #   lectura de cámara (opcional), física, colisiones y render.
     # - Al terminar muestra la pantalla de GAME OVER.
-    
+    # - Inicializa el estado del jugador, los obstáculos y el puntaje.
     jugador = {"x": 100, "y": 300, "vx": 0, "vy": 0}
 
     # Obstáculos
@@ -182,15 +180,13 @@ def jugar():
         dt = clock.tick(30) / 1000.0
 
         # Leer la cámara para mostrar un preview en la pantalla de LISTO.
-        # Nota: aquí solo mostramos la imagen/preview; no se aplica física.
-        # Si MediaPipe está configurado, también se puede usar para detectar
-        # gestos incluso antes de empezar (ej. pinch para comenzar).
-        # leer cámara y crear preview (igual que en el bucle principal)
         ret, frame = cap.read()
         cam_preview = None
+        # Nota: aquí solo mostramos la imagen/preview; no se aplica física.
         if ret:
             frame = cv2.flip(frame, 1)
             rgb_frame = cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)
+            # Si MediaPipe está configurado, también se puede usar para detectar gestos.
             if hands is not None:
                 results = hands.process(rgb_frame)
             else:
@@ -198,6 +194,7 @@ def jugar():
             try:
                 cam_surf = pygame.image.frombuffer(rgb_frame.tobytes(), (frame.shape[1], frame.shape[0]), 'RGB')
                 cam_preview = pygame.transform.scale(cam_surf, (320, 240))
+                # leer cámara y crear preview (igual que en el bucle principal)
             except:
                 cam_preview = None
 
@@ -228,41 +225,36 @@ def jugar():
     while running:
         dt = clock.tick(120) / 1000.0
 
-        
-
-        # --- Eventos ---
-        # Procesa entrada de usuario: cerrar ventana, pausa/escape y salto con SPACE.
-        # Mantener este bloque simple evita que los eventos se acumulen.
         # EVENTOS
         for e in pygame.event.get():
             if e.type == pygame.QUIT: sys.exit()
-
+        # Procesa entrada de usuario: cerrar ventana, pausa/escape y salto con SPACE.
             if e.type == pygame.KEYDOWN:
                 if e.key == pygame.K_ESCAPE:
                     return
                 if e.key == pygame.K_SPACE:
                     jugador["vy"] = -700
-
-        # --- Generar obstáculos ---
-        # Se usa `tiempo_para_prox_obstaculo` para espaciar la aparición de tubos.
-        # Cuando alcanza 0 se crea un nuevo obstáculo con una separación vertical aleatoria.
+        # Mantener este bloque simple evita que los eventos se acumulen.
+        
         # GENERAR OBSTÁCULOS
         tiempo_para_prox_obstaculo -= dt
+        # Se usa `tiempo_para_prox_obstaculo` para espaciar la aparición de tubos.
         if tiempo_para_prox_obstaculo <= 0:
             tiempo_para_prox_obstaculo = INTERVALO_OBSTACULO
             margen = int(H * 0.25)
+        # Cuando alcanza 0 se crea un nuevo obstáculo con una separación vertical aleatoria.
             centro_y = random.randint(margen + ESPACIO_OBSTACULO // 2,
                                       H - margen - ESPACIO_OBSTACULO // 2)
             obstaculos.append({"x": W, "centro_y": centro_y, "contado": False})
 
-        # --- Mover obstáculos ---
-        # Actualiza la posición X de los obstáculos y descarta los que
-        # han salido completamente de la pantalla (para liberar memoria).
+        
         # MOVER OBSTÁCULOS
         obstaculos_nuevos = []
+        # Actualiza la posición X de los obstáculos y descarta los que
         mov_x = VELOCIDAD_OBSTACULO * dt
         for obs in obstaculos:
             obs["x"] -= mov_x
+            # han salido completamente de la pantalla (para liberar memoria).
             if obs["x"] + ANCHO_OBSTACULO > 0:
                 obstaculos_nuevos.append(obs)
         obstaculos = obstaculos_nuevos
@@ -327,15 +319,12 @@ def jugar():
                 jugador["vy"] = 0
                 control_por_dedo = True
 
-
-        # --- Física ---
-        # Aplicar gravedad y rozamiento únicamente si NO estamos controlando
-        # al jugador con la mano (control_por_dedo). Después actualizamos
-        # la posición vertical en base a la velocidad `vy`.
         # FÍSICA
+        # Aplicar gravedad y rozamiento al NO jugador con la mano (control_por_dedo). 
         if not control_por_dedo:
             aplicar_gravedad_y_rozamiento(jugador, dt)
         jugador["y"] += jugador["vy"] * dt
+        # Después actualizamos la posición vertical en base a la velocidad `vy`.
 
         # COLISIÓN ARRIBA/ABAJO
         if jugador["y"] < 0:
@@ -346,12 +335,9 @@ def jugar():
             jugador["y"] = H - 40
             running = False
 
-        # --- Colisión con tuberías ---
-        # Para cada obstáculo calculamos las zonas superior e inferior y:
-        # - aumentamos el puntaje cuando el jugador pasa por el hueco (una vez por obstáculo)
-        # - comprobamos si hay solapamiento vertical/horizontal que produzca colisión
-        # Si detectamos colisión, `running` se pone a False para terminar la partida.
-        # --- COLISIÓN CON TUBERÍAS ---
+        # COLISIÓN CON TUBERÍAS
+
+        # Para cada obstáculo calculamos las zonas superior e inferior y
         for obs in obstaculos:
             x = int(obs["x"])
             alto_sup = obs["centro_y"] - ESPACIO_OBSTACULO // 2
@@ -362,13 +348,16 @@ def jugar():
                 puntaje += 1
                 obs["contado"] = True
                 if sonido_salto: sonido_salto.play()
+        # Aumentamos el puntaje cuando el jugador pasa por el hueco (una vez por obstáculo)
 
-            # Colisión
+            # Comprobamos si hay solapamiento vertical/horizontal que produzca colisión
             if (x < jugador["x"] < x + ANCHO_OBSTACULO):
                 if jugador["y"] < alto_sup or jugador["y"] > y_inf:
                     running = False
+            # Si detectamos colisión, `running` se pone a False para terminar la partida.
 
-        # --- Dibujar ---
+        # DIBUJAR
+
         # Renderiza la escena: fondo, jugador, preview de cámara (si existe)
         # y los tubos. Mantén la orden de dibujado para que los objetos se vean
         # correctamente (fondo primero, luego sprites encima).
@@ -397,11 +386,9 @@ def jugar():
     # ---------------------------------------------------
     # GAME OVER
     # ---------------------------------------------------
-    # Reproducir sonido de colisión (si está disponible) y mostrar pantalla
-    # de GAME OVER con el puntaje final. El código que sigue devuelve al menú
-    # cuando el usuario pulsa una tecla o automáticamente después de 4 segundos.
+
     if sonido_colision: sonido_colision.play()
-    
+    # Reproducir sonido de colisión (si está disponible) y mostrar pantalla de GAME OVER.
     start_time = pygame.time.get_ticks()
 
     while True:
@@ -439,6 +426,3 @@ try:
     cv2.destroyAllWindows()
 except:
     pass
-
-
-
