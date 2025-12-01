@@ -56,7 +56,8 @@ b) Descripción detallada de las mecánicas de juego
 
 c) Controles
 
-> Movimiento del dedo índice / TECLA ESPACIO -> impulsar hacia arriba.
+> Movimiento del dedo índice -> Controlar altura del personaje.
+> TECLA ESPACIO -> impulsar hacia arriba.
 
 d) Niveles y misiones
 
