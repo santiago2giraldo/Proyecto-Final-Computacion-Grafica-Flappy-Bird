@@ -20,5 +20,5 @@ sonido_colision.mp3 -> Efecto de sonido al chocar con un obstáculo.
 
 Cómo ejecutar:
 
-Abrir terminal en la carpeta FlappyBird.
-Ejecutar: Juego.py.
+Descargar y abrir carpeta FlappyBird.
+Ejecutar archivo: Juego.py.
